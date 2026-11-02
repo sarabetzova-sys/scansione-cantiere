@@ -12,67 +12,30 @@
     label { display: block; text-align: left; font-weight: bold; margin: 10px 0 5px; }
     input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 15px; }
     .btn { background-color: #1a73e8; color: white; padding: 16px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; width: 100%; cursor: pointer; }
-    .btn-stop { background-color: #d93025; margin-top: 10px; display: none; }
     #reader { width: 100%; margin-top: 15px; border-radius: 10px; overflow: hidden; display: none; background: #000; }
     #status { margin-top: 15px; font-weight: bold; font-size: 15px; min-height: 40px; }
     .success { color: #2e7d32; background: #e8f5e9; padding: 10px; border-radius: 8px; }
     .error { color: #c62828; background: #ffebee; padding: 10px; border-radius: 8px; }
     .loading { color: #f57c00; }
-    .counter { font-size: 14px; color: #1a73e8; font-weight: bold; margin-top: 10px; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>⚡ Scansione Ultrafast</h2>
+    <h2>📸 Scansione Live Cantiere</h2>
     
     <label for="cantiere">Nome Cantiere:</label>
-    <input type="text" id="cantiere" placeholder="Es. Rossi" oninput="salvaCantiereInMemoria()">
+    <input type="text" id="cantiere" placeholder="Es. Rossi">
     
-    <button id="btnStart" class="btn" onclick="avviaFotocamera()">📷 AVVIA SCANSIONE CONTINUA</button>
-    <button id="btnStop" class="btn btn-stop" onclick="fermaFotocamera()">🛑 FERMA FOTOCAMERA</button>
+    <button id="btnStart" class="btn" onclick="avviaFotocamera()">📷 AVVIA FOTOCAMERA</button>
     
     <div id="reader"></div>
-    <div id="counter" class="counter">Pezzi registrati: 0</div>
     <div id="status"></div>
   </div>
 
-  <form id="uploadForm" action="https://script.google.com/macros/s/AKfycbyGwTH5XvhmZQ7Dvt5CJv2OkJPr7pqgb8PupsYQA3w7mGZJuuVy7eCQB3MmuJ3p_jqn/exec" method="POST" target="hidden_iframe" style="display:none;">
-    <input type="hidden" name="payload" id="payloadInput">
-  </form>
-  <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
-
   <script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyGwTH5XvhmZQ7Dvt5CJv2OkJPr7pqgb8PupsYQA3w7mGZJuuVy7eCQB3MmuJ3p_jqn/exec";
+
     let html5QrCode;
-    let pezziScansionati = 0;
-    let lastScanTime = 0;
-    let lastScannedText = "";
-
-    window.addEventListener("DOMContentLoaded", function() {
-      var cantiereSalvato = localStorage.getItem("cantiere_scelto");
-      if (cantiereSalvato) {
-        document.getElementById('cantiere').value = cantiereSalvato;
-      }
-    });
-
-    function salvaCantiereInMemoria() {
-      var val = document.getElementById('cantiere').value.trim();
-      localStorage.setItem("cantiere_scelto", val);
-    }
-
-    function playBeep() {
-      try {
-        var ctx = new (window.AudioContext || window.webkitAudioContext)();
-        var osc = ctx.createOscillator();
-        var gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = "sine";
-        osc.frequency.value = 900;
-        gain.gain.value = 0.2;
-        osc.start();
-        setTimeout(function() { osc.stop(); ctx.close(); }, 120);
-      } catch(e) {}
-    }
 
     function avviaFotocamera() {
       var cantiereVal = document.getElementById('cantiere').value.trim();
@@ -81,20 +44,16 @@
         return;
       }
 
-      salvaCantiereInMemoria();
-
       document.getElementById('btnStart').style.display = 'none';
-      document.getElementById('btnStop').style.display = 'block';
       document.getElementById('reader').style.display = 'block';
       
       var statusDiv = document.getElementById('status');
       statusDiv.className = "loading";
-      statusDiv.innerHTML = "Inquadra i codici in sequenza...";
+      statusDiv.innerHTML = "Inquadra il codice a barre...";
 
       html5QrCode = new Html5Qrcode("reader");
       
-      // Configurazione ad alta velocità (30 FPS)
-      const config = { fps: 30, qrbox: { width: 260, height: 160 } };
+      const config = { fps: 15, qrbox: { width: 250, height: 150 } };
 
       html5QrCode.start(
         { facingMode: "environment" }, 
@@ -102,93 +61,71 @@
         onScanSuccess
       ).catch(err => {
         statusDiv.className = "error";
-        statusDiv.innerHTML = "Errore fotocamera: " + err;
-        fermaFotocamera();
+        statusDiv.innerHTML = "Errore accesso fotocamera: " + err;
+        document.getElementById('btnStart').style.display = 'block';
       });
     }
 
-    function fermaFotocamera() {
-      if (html5QrCode) {
-        html5QrCode.stop().then(() => {
-          document.getElementById('reader').style.display = 'none';
-          document.getElementById('btnStart').style.display = 'block';
-          document.getElementById('btnStop').style.display = 'none';
-        }).catch(() => {
-          document.getElementById('reader').style.display = 'none';
-          document.getElementById('btnStart').style.display = 'block';
-          document.getElementById('btnStop').style.display = 'none';
-        });
-      }
-    }
-
     function onScanSuccess(decodedText) {
-      let now = Date.now();
-      
-      // Evita doppie letture dello stesso codice entro 2.5 secondi
-      if (decodedText === lastScannedText && (now - lastScanTime) < 2500) {
-        return;
-      }
-      // Evita letture troppo ravvicinate (minimo 1 secondo tra due pezzi diversi)
-      if ((now - lastScanTime) < 1000) {
-        return;
-      }
+      var statusDiv = document.getElementById('status');
+      statusDiv.className = "loading";
+      statusDiv.innerHTML = "⏳ Codice letto! Cattura foto in corso...";
 
-      lastScanTime = now;
-      lastScannedText = decodedText;
-
-      // Segnale acustico e vibrazione immediati
-      playBeep();
-      if (navigator.vibrate) navigator.vibrate(150);
-
-      // Cattura istantanea e alleggerita della foto
       var fotoBase64 = "";
       try {
         var videoElement = document.querySelector("#reader video");
         if (videoElement && videoElement.videoWidth > 0) {
           var canvas = document.createElement("canvas");
-          
-          // Riduzione risoluzione per velocizzare il Base64 (max 800px)
-          var maxDim = 800;
-          var width = videoElement.videoWidth;
-          var height = videoElement.videoHeight;
-          if (width > maxDim) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          var ctx = canvas.getContext("2d", { willReadFrequently: true });
-          ctx.drawImage(videoElement, 0, 0, width, height);
-          fotoBase64 = canvas.toDataURL("image/jpeg", 0.5);
+          canvas.width = videoElement.videoWidth;
+          canvas.height = videoElement.videoHeight;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+          fotoBase64 = canvas.toDataURL("image/jpeg", 0.7);
         }
       } catch(e) {
-        console.log("Errore scatto:", e);
+        console.log("Errore foto:", e);
       }
 
-      // Invio in background senza fermare la fotocamera
-      pezziScansionati++;
-      document.getElementById('counter').innerHTML = "Pezzi registrati: <b>" + pezziScansionati + "</b>";
-
-      var statusDiv = document.getElementById('status');
-      statusDiv.className = "success";
-      statusDiv.innerHTML = "⚡ Letto: <b>" + decodedText + "</b> (Invio in corso...)";
-
-      inviaAlServerInBackground(decodedText, fotoBase64);
+      html5QrCode.stop().then(() => {
+        document.getElementById('reader').style.display = 'none';
+        inviaAlServer(decodedText, fotoBase64);
+      }).catch(() => {
+        document.getElementById('reader').style.display = 'none';
+        inviaAlServer(decodedText, fotoBase64);
+      });
     }
 
-    function inviaAlServerInBackground(seriale, fotoBase64) {
+    function inviaAlServer(seriale, fotoBase64) {
       var cantiereVal = document.getElementById('cantiere').value.trim();
+      var statusDiv = document.getElementById('status');
+      
+      statusDiv.className = "loading";
+      statusDiv.innerHTML = "⏳ Salvataggio su Google Drive e Foglio...<br><b>Seriale:</b> " + seriale;
 
-      var payloadObj = {
+      var payload = {
         cantiere: cantiereVal,
         seriale: seriale,
         fotoBase64: fotoBase64,
         mimeType: "image/jpeg"
       };
 
-      document.getElementById('payloadInput').value = JSON.stringify(payloadObj);
-      document.getElementById('uploadForm').submit();
+      // Utilizzo di mode: 'no-cors' per superare le restrizioni di Safari iOS
+      fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+      })
+      .then(function() {
+        statusDiv.className = "success";
+        statusDiv.innerHTML = "✅ Salvato su Drive e Sheet!<br><b>Seriale:</b> " + seriale;
+        document.getElementById('btnStart').style.display = 'block';
+      })
+      .catch(function(err) {
+        statusDiv.className = "error";
+        statusDiv.innerHTML = "❌ Errore invio dati: " + err;
+        document.getElementById('btnStart').style.display = 'block';
+      });
     }
   </script>
 </body>
