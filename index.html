@@ -67,17 +67,32 @@
     }
 
     function onScanSuccess(decodedText) {
+      var statusDiv = document.getElementById('status');
+      statusDiv.className = "loading";
+      statusDiv.innerHTML = "⏳ Codice letto! Cattura foto in corso...";
+
+      // Cattura l'immagine dal flusso video PRIMA di fermare la fotocamera
+      var fotoBase64 = "";
+      try {
+        var videoElement = document.querySelector("#reader video");
+        if (videoElement && videoElement.videoWidth > 0) {
+          var canvas = document.createElement("canvas");
+          canvas.width = videoElement.videoWidth;
+          canvas.height = videoElement.videoHeight;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+          fotoBase64 = canvas.toDataURL("image/jpeg", 0.7);
+        }
+      } catch(e) {
+        console.log("Errore foto:", e);
+      }
+
+      // Spegne la fotocamera ed effettua l'invio
       html5QrCode.stop().then(() => {
         document.getElementById('reader').style.display = 'none';
-        
-        var videoElement = document.querySelector("#reader video");
-        var canvas = document.createElement("canvas");
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
-        var ctx = canvas.getContext("2d");
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-        var fotoBase64 = canvas.toDataURL("image/jpeg", 0.8);
-
+        inviaAlServer(decodedText, fotoBase64);
+      }).catch(() => {
+        document.getElementById('reader').style.display = 'none';
         inviaAlServer(decodedText, fotoBase64);
       });
     }
@@ -87,7 +102,7 @@
       var statusDiv = document.getElementById('status');
       
       statusDiv.className = "loading";
-      statusDiv.innerHTML = "⏳ Salvataggio in corso...<br><b>Seriale:</b> " + seriale;
+      statusDiv.innerHTML = "⏳ Salvataggio su Google Drive e Foglio...<br><b>Seriale:</b> " + seriale;
 
       var payload = {
         cantiere: cantiereVal,
@@ -108,13 +123,13 @@
           statusDiv.innerHTML = "✅ Salvato su Drive e Sheet!<br><b>Seriale:</b> " + response.seriale;
         } else {
           statusDiv.className = "error";
-          statusDiv.innerHTML = "❌ Errore salvataggio: " + response.error;
+          statusDiv.innerHTML = "❌ Errore Google Script: " + response.error;
         }
         document.getElementById('btnStart').style.display = 'block';
       })
       .catch(err => {
         statusDiv.className = "error";
-        statusDiv.innerHTML = "❌ Errore invio dati: " + err;
+        statusDiv.innerHTML = "❌ Errore di rete: " + err;
         document.getElementById('btnStart').style.display = 'block';
       });
     }
