@@ -71,7 +71,6 @@
       statusDiv.className = "loading";
       statusDiv.innerHTML = "⏳ Codice letto! Cattura foto in corso...";
 
-      // Cattura l'immagine dal flusso video PRIMA di fermare la fotocamera
       var fotoBase64 = "";
       try {
         var videoElement = document.querySelector("#reader video");
@@ -87,7 +86,6 @@
         console.log("Errore foto:", e);
       }
 
-      // Spegne la fotocamera ed effettua l'invio
       html5QrCode.stop().then(() => {
         document.getElementById('reader').style.display = 'none';
         inviaAlServer(decodedText, fotoBase64);
@@ -111,25 +109,21 @@
         mimeType: "image/jpeg"
       };
 
+      // Utilizzo di mode: 'no-cors' per superare le restrizioni di Safari iOS
       fetch(GOOGLE_SCRIPT_URL, {
         method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify(payload)
       })
-      .then(res => res.json())
-      .then(response => {
-        if (response.success) {
-          statusDiv.className = "success";
-          statusDiv.innerHTML = "✅ Salvato su Drive e Sheet!<br><b>Seriale:</b> " + response.seriale;
-        } else {
-          statusDiv.className = "error";
-          statusDiv.innerHTML = "❌ Errore Google Script: " + response.error;
-        }
+      .then(function() {
+        statusDiv.className = "success";
+        statusDiv.innerHTML = "✅ Salvato su Drive e Sheet!<br><b>Seriale:</b> " + seriale;
         document.getElementById('btnStart').style.display = 'block';
       })
-      .catch(err => {
+      .catch(function(err) {
         statusDiv.className = "error";
-        statusDiv.innerHTML = "❌ Errore di rete: " + err;
+        statusDiv.innerHTML = "❌ Errore invio dati: " + err;
         document.getElementById('btnStart').style.display = 'block';
       });
     }
